@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>z3_armor.algorithm &mdash; z3_armor 0.0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=19f00094" />
+
+  
+    <link rel="shortcut icon" href="../../_static/favicon.png"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=f6245a2f"></script>
+        <script src="../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
+        <script src="https://unpkg.com/mermaid@10.2.0/dist/mermaid.min.js"></script>
+        <script>mermaid.initialize({startOnLoad:true});</script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            z3_armor
+          </a>
+              <div class="version">
+                0.0.1
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">API Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">z3_armor</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">z3_armor.algorithm</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for z3_armor.algorithm</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Generator for constraints.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">builtins</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">pathlib</span>
+<span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Iterator</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Union</span>
+
+<span class="kn">from</span> <span class="nn">jinja2</span> <span class="kn">import</span> <span class="n">Environment</span><span class="p">,</span> <span class="n">FileSystemLoader</span><span class="p">,</span> <span class="n">Template</span>
+<span class="kn">from</span> <span class="nn">z3</span> <span class="kn">import</span> <span class="n">BitVec</span><span class="p">,</span> <span class="n">Solver</span><span class="p">,</span> <span class="n">sat</span>
+
+<span class="kn">from</span> <span class="nn">.constraint</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CompareConstraint</span><span class="p">,</span>
+    <span class="n">Constraint</span><span class="p">,</span>
+    <span class="n">OperationConstraint</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.operator</span> <span class="kn">import</span> <span class="n">OPERATORS</span><span class="p">,</span> <span class="n">REVERSIBLE_OPERATORS</span>
+
+<span class="c1"># Load jinja Environnement</span>
+<span class="n">HERE</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+<span class="n">TEMPLATES</span> <span class="o">=</span> <span class="n">HERE</span> <span class="o">/</span> <span class="s2">&quot;templates&quot;</span>
+
+<span class="c1"># Logging</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">NoMoreConstraintError</span><span class="p">(</span><span class="ne">RecursionError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;No constraints can be generated.&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="Z3Armor"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor">[docs]</a><span class="k">class</span> <span class="nc">Z3Armor</span><span class="p">:</span>
+<div class="viewcode-block" id="Z3Armor.__init__"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">secret</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span>
+        <span class="n">random_state</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Instantiated Z3Armor.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">indexes</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">secret</span><span class="p">))}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Constraint</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">random_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rand</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="n">random_state</span><span class="p">)</span>  <span class="c1"># noqa: S311</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rand</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">SystemRandom</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">secret</span> <span class="o">=</span> <span class="n">secret</span></div>
+
+<div class="viewcode-block" id="Z3Armor.__str__"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.__str__">[docs]</a>    <span class="k">def</span> <span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Represent the ConstraintGenerator.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;&lt;ConstraintGenerator constraints=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="p">)</span><span class="si">}</span><span class="s2"> &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;secret=</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">secret</span><span class="si">!r}</span><span class="s2">&gt;&quot;</span>
+        <span class="p">)</span></div>
+
+<div class="viewcode-block" id="Z3Armor.solver"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.solver">[docs]</a>    <span class="k">def</span> <span class="nf">solver</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Solver</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">BitVec</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create the solver.&quot;&quot;&quot;</span>
+        <span class="n">solver</span> <span class="o">=</span> <span class="n">Solver</span><span class="p">()</span>
+        <span class="n">terms</span> <span class="o">=</span> <span class="p">[</span><span class="n">BitVec</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;p[</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">secret</span><span class="p">))]</span>
+        <span class="k">for</span> <span class="n">const</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="p">:</span>
+            <span class="n">solver</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">const</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">terms</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">solver</span><span class="p">,</span> <span class="n">terms</span></div>
+
+<div class="viewcode-block" id="Z3Armor.verify"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">secret</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Verify a password on the constraint generator.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">const</span><span class="o">.</span><span class="n">check</span><span class="p">(</span><span class="n">secret</span><span class="p">)</span> <span class="k">for</span> <span class="n">const</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Z3Armor.complete"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.complete">[docs]</a>    <span class="k">def</span> <span class="nf">complete</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Check that the solver has a valid unique solution.&quot;&quot;&quot;</span>
+        <span class="c1"># Get the current solver</span>
+        <span class="n">solver</span><span class="p">,</span> <span class="n">terms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="p">()</span>
+
+        <span class="c1"># Check if model is sat</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">check</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">result</span> <span class="o">!=</span> <span class="n">sat</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;No complete because model solver is </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># Check if one of secret characters is None</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">model</span><span class="p">()</span>
+        <span class="n">solution</span> <span class="o">=</span> <span class="p">[</span><span class="n">model</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">c</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">solution</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;No complete because some char are missing&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># Check if first guess is the secret</span>
+        <span class="n">guess</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bytes</span><span class="p">]</span> <span class="o">=</span> <span class="nb">bytes</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">as_long</span><span class="p">()</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">solution</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">guess</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">secret</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;No complete because first guess is wrong&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># Check if there are only one guess</span>
+        <span class="n">guess</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">secret</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">solutions</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">guess</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;No complete because other guess exist&quot;</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="n">guess</span> <span class="o">=</span> <span class="n">secret</span>
+        <span class="k">if</span> <span class="n">guess</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span>
+
+        <span class="c1"># All is ok so return True</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Complete&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="Z3Armor.solutions"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.solutions">[docs]</a>    <span class="k">def</span> <span class="nf">solutions</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">bytes</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Find all solution for the currents constraints.&quot;&quot;&quot;</span>
+        <span class="c1"># ref: https://stackoverflow.com/questions/11867611/z3py-checking-all-solutions-for-equation</span>
+        <span class="c1"># ref: https://theory.stanford.edu/%7Enikolaj/programmingz3.html#sec-blocking-evaluations</span>
+        <span class="n">solver</span><span class="p">,</span> <span class="n">terms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">solver</span><span class="p">()</span>
+        <span class="n">previous</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">_all_smt_rec</span><span class="p">(</span><span class="n">terms</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">BitVec</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">bytes</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">sat</span> <span class="o">==</span> <span class="n">solver</span><span class="o">.</span><span class="n">check</span><span class="p">():</span>
+                <span class="n">model</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">model</span><span class="p">()</span>
+                <span class="n">solution</span> <span class="o">=</span> <span class="p">[</span><span class="n">model</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">c</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">solution</span><span class="p">):</span>
+                    <span class="n">password</span> <span class="o">=</span> <span class="nb">bytes</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">as_long</span><span class="p">()</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">solution</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">password</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">previous</span><span class="p">:</span>
+                        <span class="n">previous</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">password</span><span class="p">)</span>
+                        <span class="k">yield</span> <span class="n">password</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">)):</span>
+                    <span class="n">solver</span><span class="o">.</span><span class="n">push</span><span class="p">()</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">solver</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">terms</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">(</span><span class="n">terms</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+                        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                            <span class="n">solver</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">terms</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">==</span> <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">(</span><span class="n">terms</span><span class="p">[</span><span class="n">j</span><span class="p">]))</span>
+                        <span class="k">yield from</span> <span class="n">_all_smt_rec</span><span class="p">(</span><span class="n">terms</span><span class="p">[</span><span class="n">i</span><span class="p">:])</span>
+                    <span class="k">finally</span><span class="p">:</span>
+                        <span class="n">solver</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+        <span class="k">yield from</span> <span class="n">_all_smt_rec</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Z3Armor.weights"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.weights">[docs]</a>    <span class="k">def</span> <span class="nf">weights</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Computes the weights of each index.&quot;&quot;&quot;</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">count</span> <span class="k">for</span> <span class="n">count</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indexes</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">total</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="mi">1</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indexes</span><span class="p">)]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indexes</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">count</span> <span class="o">/</span> <span class="n">total</span> <span class="k">for</span> <span class="n">count</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indexes</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span></div>
+
+<div class="viewcode-block" id="Z3Armor.generate"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.generate">[docs]</a>    <span class="k">def</span> <span class="nf">generate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rand</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Constraint</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a new constraint and it into the generator.&quot;&quot;&quot;</span>
+        <span class="c1"># Generate an temporary generator</span>
+        <span class="k">if</span> <span class="n">rand</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">seed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rand</span><span class="o">.</span><span class="n">random</span><span class="p">()</span>
+            <span class="n">rand</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">(</span><span class="n">seed</span><span class="p">)</span>  <span class="c1"># noqa: S311</span>
+
+        <span class="n">used_indexes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">const</span><span class="p">:</span> <span class="n">Constraint</span>
+
+        <span class="c1"># Create first constraints</span>
+        <span class="k">if</span> <span class="n">rand</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weighted_sampling</span><span class="p">(</span><span class="n">rand</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">used_indexes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">used_indexes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+            <span class="n">rev_op</span> <span class="o">=</span> <span class="n">rand</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">REVERSIBLE_OPERATORS</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">rev_op</span><span class="o">.</span><span class="n">reverse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">secret</span><span class="p">[</span><span class="n">y</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">secret</span><span class="p">[</span><span class="n">x</span><span class="p">])</span> <span class="o">%</span> <span class="mi">256</span>
+            <span class="c1"># Avoid linkage of the same letter</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">rand</span><span class="o">=</span><span class="n">rand</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">RecursionError</span><span class="p">:</span>
+                    <span class="n">error_message</span> <span class="o">=</span> <span class="s2">&quot;No more constraint can be generated.&quot;</span>
+                    <span class="k">raise</span> <span class="n">NoMoreConstraintError</span><span class="p">(</span><span class="n">error_message</span><span class="p">)</span> <span class="kn">from</span> <span class="kc">None</span>
+            <span class="n">const</span> <span class="o">=</span> <span class="n">CompareConstraint</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">rev_op</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+
+        <span class="c1"># Create a OperationConstraint</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">weighted_sampling</span><span class="p">(</span><span class="n">rand</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">used_indexes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">used_indexes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+            <span class="n">op</span> <span class="o">=</span> <span class="n">rand</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">OPERATORS</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">op</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">secret</span><span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">secret</span><span class="p">[</span><span class="n">y</span><span class="p">])</span> <span class="o">%</span> <span class="mi">256</span>
+            <span class="n">const</span> <span class="o">=</span> <span class="n">OperationConstraint</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">op</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+
+        <span class="c1"># Regenerate already existing constants</span>
+        <span class="k">if</span> <span class="n">const</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">rand</span><span class="o">=</span><span class="n">rand</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">RecursionError</span><span class="p">:</span>
+                <span class="n">error_message</span> <span class="o">=</span> <span class="s2">&quot;No more constraint can be generated.&quot;</span>
+                <span class="k">raise</span> <span class="n">NoMoreConstraintError</span><span class="p">(</span><span class="n">error_message</span><span class="p">)</span> <span class="kn">from</span> <span class="kc">None</span>
+
+        <span class="c1"># Use index</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">used_indexes</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">indexes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">const</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Generate new constraint </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">const</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">const</span></div>
+
+<div class="viewcode-block" id="Z3Armor.fit"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.fit">[docs]</a>    <span class="k">def</span> <span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Make solver sat.&quot;&quot;&quot;</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">complete</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">generate</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">NoMoreConstraintError</span><span class="p">:</span>  <span class="c1"># noqa: PERF203</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;No more constraints&quot;</span><span class="p">)</span>
+                <span class="k">break</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reduce</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">complete</span><span class="p">():</span>
+            <span class="n">error_message</span> <span class="o">=</span> <span class="s2">&quot;Model is not sat after reduce&quot;</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="n">error_message</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Z3Armor.weighted_sampling"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.weighted_sampling">[docs]</a>    <span class="k">def</span> <span class="nf">weighted_sampling</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">rand</span><span class="p">:</span> <span class="n">random</span><span class="o">.</span><span class="n">Random</span><span class="p">,</span>
+        <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get index using sampling.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="o">&gt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indexes</span><span class="p">):</span>
+            <span class="n">error_message</span> <span class="o">=</span> <span class="s2">&quot;Not enough indexes.&quot;</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="n">error_message</span><span class="p">)</span>
+        <span class="n">indexes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indexes</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">chosen</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+            <span class="n">max_count</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">indexes</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+            <span class="k">if</span> <span class="nb">min</span><span class="p">(</span><span class="n">indexes</span><span class="o">.</span><span class="n">values</span><span class="p">())</span> <span class="o">==</span> <span class="n">max_count</span><span class="p">:</span>
+                <span class="n">max_count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">weights</span> <span class="o">=</span> <span class="p">[</span><span class="n">max_count</span> <span class="o">-</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">indexes</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+            <span class="p">(</span><span class="n">choose</span><span class="p">,)</span> <span class="o">=</span> <span class="n">rand</span><span class="o">.</span><span class="n">choices</span><span class="p">(</span>
+                <span class="nb">list</span><span class="p">(</span><span class="n">indexes</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="n">weights</span>
+            <span class="p">)</span>
+            <span class="n">chosen</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">choose</span><span class="p">)</span>
+            <span class="n">indexes</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">choose</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">chosen</span></div>
+
+<div class="viewcode-block" id="Z3Armor.reduce"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.reduce">[docs]</a>    <span class="k">def</span> <span class="nf">reduce</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Minimize the number of constraints.&quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Start reduction&quot;</span><span class="p">)</span>
+        <span class="n">start_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="p">)</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">constraint</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">constraint</span><span class="p">)</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">complete</span><span class="p">():</span>
+                    <span class="k">break</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">constraint</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">break</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">&quot;Reduction result: </span><span class="si">%s</span><span class="s2"> to </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">start_size</span><span class="p">,</span>
+            <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="p">),</span>
+        <span class="p">)</span></div>
+
+<div class="viewcode-block" id="Z3Armor.format"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.format">[docs]</a>    <span class="k">def</span> <span class="nf">format</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Format the algorithm with the premade template.&quot;&quot;&quot;</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span>
+            <span class="n">loader</span><span class="o">=</span><span class="n">FileSystemLoader</span><span class="p">(</span><span class="n">TEMPLATES</span><span class="p">),</span>
+            <span class="n">autoescape</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># noqa: S701</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">variable</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">builtins</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">variable</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">):</span>
+                <span class="n">env</span><span class="o">.</span><span class="n">globals</span><span class="p">[</span><span class="n">variable</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">builtins</span><span class="p">,</span> <span class="n">variable</span><span class="p">)</span>
+        <span class="n">template</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">get_template</span><span class="p">(</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;.j2&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">format_from_template</span><span class="p">(</span><span class="n">template</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Z3Armor.format_from_path"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.format_from_path">[docs]</a>    <span class="k">def</span> <span class="nf">format_from_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Format the algorithm with template on filesystem.&quot;&quot;&quot;</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+        <span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">(</span>
+            <span class="n">loader</span><span class="o">=</span><span class="n">FileSystemLoader</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">parent</span><span class="p">),</span>
+            <span class="n">autoescape</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># noqa: S701</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">builtins</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;_&quot;</span><span class="p">):</span>
+                <span class="n">env</span><span class="o">.</span><span class="n">globals</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">builtins</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="n">template</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">get_template</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">format_from_template</span><span class="p">(</span><span class="n">template</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Z3Armor.format_from_template"><a class="viewcode-back" href="../../references.html#z3_armor.Z3Armor.format_from_template">[docs]</a>    <span class="k">def</span> <span class="nf">format_from_template</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">template</span><span class="p">:</span> <span class="n">Template</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Format the algorithm with the provided template.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">template</span><span class="o">.</span><span class="n">render</span><span class="p">(</span>
+            <span class="n">secret</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">secret</span><span class="p">,</span>
+            <span class="n">constraints</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">constraints</span><span class="p">,</span>
+            <span class="n">size</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">secret</span><span class="p">),</span>
+        <span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright Dashstrom &lt;dashstrom.pro@gmail.com&gt;.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
