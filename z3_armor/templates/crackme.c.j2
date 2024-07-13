@@ -1,0 +1,36 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <string.h>
+
+#define SIZE {{ size }}
+
+typedef unsigned char uc;
+static const char INVALID_PASSWORD[] = "Invalid password (\u256f\u00b0\u25a1\u00b0)\u256f \u253b\u2501\u253b\n";
+static const char VALID_PASSWORD[] = "Valid password \u252c\u2500\u252c ~( \u00ba-\u00ba~)\n";
+
+int main();
+
+int main() {
+  char secret[SIZE + 1];
+  printf("password: ");
+  fgets(secret, SIZE + 1, stdin);
+  secret[strcspn(secret, "\r\n")] = 0;
+  size_t length = strlen(secret);
+  if (length != SIZE) {
+    printf(INVALID_PASSWORD);
+    return 1;
+  }
+  if (
+    {% for const in constraints -%}
+    {{ const | string | replace("(", "(uc)(") }}
+    {%- if not loop.last %}
+    && {% endif -%}
+  {% endfor %}
+  ) {
+    printf(VALID_PASSWORD);
+  } else {
+    printf(INVALID_PASSWORD);
+  }
+  return 0;
+}

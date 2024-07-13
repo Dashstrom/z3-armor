@@ -6,9 +6,13 @@
   },
   // Set file associations to support comments syntax highlight
   "files.associations": {
+    "*.ejs": "html",
+    "*requirement*.txt": "pip-requirements",
+    "*.toml": "ini",
     "settings.json": "jsonc",
     "extensions.json": "jsonc",
-    "LICENSE": "txt"
+    "LICENSE": "txt",
+    "types.h": "c"
   },
   // Files to exclude
   "files.exclude": {
@@ -64,24 +68,36 @@
     "automodule",
     "autouse",
     "bysource",
+    "caplog",
+    "chall",
+    "commitizen",
+    "crackme",
+    "Dashstrom",
     "docstrings",
+    "doctest",
+    "ensurepath",
+    "fgets",
     "genindex",
+    "invalide",
+    "levelname",
     "modindex",
     "mypy",
+    "noqa",
+    "pipx",
+    "premade",
+    "pypi",
     "sourcelink",
     "sphinxcontrib",
+    "stdlib",
+    "strcspn",
+    "strlen",
     "todos",
     "typehints",
     "undoc",
+    "unsat",
+    "valide",
     "viewcode",
-    "doctest",
-    "noqa",
     "webbrowser",
-    "commitizen",
-    "levelname",
-    "caplog",
-    "pypi",
-    "Dashstrom",
     "z3_armor"
   ]
 }

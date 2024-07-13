@@ -1,14 +1,15 @@
 """Main module."""
 
+from .algorithm import Z3Armor
 from .cli import entrypoint
-from .core import (
+from .constraint import Constraint
+from .info import (
     __author__,
     __email__,
     __license__,
     __maintainer__,
     __summary__,
     __version__,
-    hello,
 )
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "__maintainer__",
     "__summary__",
     "__version__",
-    "hello",
+    "Constraint",
+    "Z3Armor",
 ]

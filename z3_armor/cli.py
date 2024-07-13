@@ -2,25 +2,20 @@
 
 import argparse
 import logging
+import pathlib
 import sys
-from typing import NoReturn, Optional, Sequence
+from typing import Optional, Sequence
 
-from .core import __issues__, __summary__, __version__, hello
+from .algorithm import Z3Armor
+from .info import __issues__, __summary__, __version__
 
 LOG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 logger = logging.getLogger(__name__)
 
 
-class HelpArgumentParser(argparse.ArgumentParser):
-    def error(self, message: str) -> NoReturn:
-        """Handle error from argparse.ArgumentParser."""
-        self.print_help(sys.stderr)
-        self.exit(2, f"{self.prog}: error: {message}\n")
-
-
 def get_parser() -> argparse.ArgumentParser:
     """Prepare ArgumentParser."""
-    parser = HelpArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="z3-armor",
         description=__summary__,
         formatter_class=argparse.RawTextHelpFormatter,
@@ -30,37 +25,44 @@ def get_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"%(prog)s, version {__version__}",
     )
-
-    # Add subparsers
-    subparsers = parser.add_subparsers(
-        help="desired action to perform",
-        dest="action",
-        required=True,
-    )
-
-    # Add parent parser with common arguments
-    parent_parser = HelpArgumentParser(add_help=False)
-    parent_parser.add_argument(
+    parser.add_argument(
         "-v",
         "--verbose",
         help="verbose mode, enable INFO and DEBUG messages.",
         action="store_true",
         required=False,
     )
-
-    # Parser of hello command
-    hello_parser = subparsers.add_parser(
-        "hello",
-        parents=[parent_parser],
-        help="greet the user.",
+    parser.add_argument(
+        "-p",
+        "--secret",
+        help="Secret to obfuscate, by default from stdin.",
+        required=False,
     )
-    hello_parser.add_argument("--name", help="name to greeting")
+    parser.add_argument(
+        "-s",
+        "--seed",
+        type=int,
+        help="Seed used for generation.",
+    )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--template",
+        choices=["crackme.c", "solver.py"],
+        help="Template to use for generate code.",
+    )
+    group.add_argument(
+        "--template-path", help="Path to jinja template to use."
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Output for the file, by default on stdout.",
+    )
     return parser
 
 
 def setup_logging(verbose: Optional[bool] = None) -> None:
     """Do setup logging."""
-    # Setup logging
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.WARNING,
         format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
@@ -70,13 +72,29 @@ def setup_logging(verbose: Optional[bool] = None) -> None:
 def entrypoint(argv: Optional[Sequence[str]] = None) -> None:
     """Entrypoint for command line interface."""
     try:
+        # Get arguments
         parser = get_parser()
         args = parser.parse_args(argv)
         setup_logging(args.verbose)
-        if args.action == "hello":
-            print(hello(args.name))  # noqa: T201
+
+        # Get secret from stdout if not provided
+        secret = input() if args.secret is None else str(args.secret)
+
+        # Create the armored program
+        armored = Z3Armor(secret=secret.encode(), random_state=args.seed)
+        armored.fit()
+        if args.template is None:
+            program = armored.format(args.template_path)
         else:
-            parser.error("No command specified")
+            program = armored.format(args.template)
+
+        # Export to stdout or file
+        if args.output is None:
+            sys.stdout.write(program)
+        else:
+            pathlib.Path(args.output).write_text(program, "utf-8")
+
+        # Report if exception occur
     except Exception as err:  # NoQA: BLE001
         logger.critical("Unexpected error", exc_info=err)
         logger.critical("Please, report this error to %s.", __issues__)

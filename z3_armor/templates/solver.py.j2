@@ -1,0 +1,22 @@
+"""Solver for challenge."""
+from z3 import BitVec, Solver, sat
+
+
+def solve() -> None:
+    """Solve challenge using z3."""
+    p = [BitVec(f"p[{i}]", 8) for i in range({{ size }})]
+    s = Solver()
+    {%- for c in constraints %}
+    s.add({{ c | replace('secret', 'p') }}){%- if not loop.last -%}
+    {%- endif -%}
+    {% endfor %}
+    if s.check() != sat:
+        print("Cannot find secret.")
+        return
+    model = s.model()
+    solutions = [model[c] for c in p]
+    flag = bytes(s.as_long() for s in solutions)
+    print(flag)
+
+if __name__ == "__main__":
+    solve()

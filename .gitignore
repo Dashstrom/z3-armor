@@ -108,3 +108,10 @@ public/
 
 # Ruff cache
 .ruff_cache/
+
+# Generated files
+/chall.c
+/chall.exe
+/chall
+/solve.py
+!conftest.py

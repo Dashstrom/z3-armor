@@ -2,13 +2,18 @@
 
 import contextlib
 import io
+import logging
 import os
+import pathlib
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
 from z3_armor import entrypoint
+
+logger = logging.getLogger(__name__)
 
 
 def test_cli_version() -> None:
@@ -48,10 +53,44 @@ def test_import() -> None:
     import z3_armor.__main__  # NoQA: F401
 
 
-def test_hello() -> None:
+def test_secret_from_stdin() -> None:
     """Test command hello."""
-    name = "A super secret name"
+    stdout = io.StringIO()
+    stdin = sys.stdin
+    try:
+        sys.stdin = io.StringIO("secret\n")
+        with contextlib.redirect_stdout(stdout):
+            entrypoint(
+                (
+                    "--template",
+                    "crackme.c",
+                )
+            )
+    finally:
+        sys.stdin = stdin
+    assert stdout.getvalue() == ""
+
+
+def test_secret_from_cmd() -> None:
+    """Test command hello."""
     stdout = io.StringIO()
     with contextlib.redirect_stdout(stdout):
-        entrypoint(("hello", "--name", name))
-    assert name in stdout.getvalue()
+        entrypoint(("--template", "crackme.c", "--secret", "secret"))
+    assert stdout.getvalue() == ""
+
+
+def test_file_output(tmpdir: pathlib.Path) -> None:
+    """Test command hello."""
+    output = tmpdir / Path("chall.c")
+    entrypoint(
+        (
+            "--template",
+            "crackme.c",
+            "--secret",
+            "secret",
+            "--output",
+            str(output),
+        )
+    )
+    assert output.exists()
+    assert output.read_text("utf-8") != ""

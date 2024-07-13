@@ -27,7 +27,7 @@ Z3 Armor
   :target: https://pypi.org/project/z3-armor
   :alt: Python : versions
 
-.. |discord| image:: https://img.shields.io/badge/Discord-Z3%20Armor-5865F2?style=flat&logo=discord&logoColor=white
+.. |discord| image:: https://img.shields.io/badge/Discord-dashstrom-5865F2?style=flat&logo=discord&logoColor=white
   :target: https://dsc.gg/dashstrom
   :alt: Discord
 
@@ -60,10 +60,100 @@ from `PyPI <https://pypi.org/project>`_
 Usage
 #####
 
+Generate C challenge
+********************
+
 ..  code-block:: bash
 
-  z3-armor --version
-  z3-armor --help
+  z3-armor --template crackme.c -p 'CTF{flag}' -s 0 -o chall.c
+  gcc -o chall -fno-stack-protector -O0 chall.c
+  ./chall
+  password: CTF{flag}
+  Valid password ┬─┬ ~( º-º~)
+
+..  code-block:: c
+
+  #include <stdio.h>
+  #include <stdlib.h>
+  #include <sys/types.h>
+  #include <string.h>
+
+  #define SIZE 9
+
+  typedef unsigned char uc;
+  static const char INVALID_PASSWORD[] = "Invalid password (\u256f\u00b0\u25a1\u00b0)\u256f \u253b\u2501\u253b\n";
+  static const char VALID_PASSWORD[] = "Valid password \u252c\u2500\u252c ~( \u00ba-\u00ba~)\n";
+
+  int main();
+
+  int main() {
+    char secret[SIZE + 1];
+    printf("password: ");
+    fgets(secret, SIZE + 1, stdin);
+    secret[strcspn(secret, "\r\n")] = 0;
+    size_t length = strlen(secret);
+    if (length != SIZE) {
+      printf(INVALID_PASSWORD);
+      return 1;
+    }
+    if (
+      (uc)(secret[1] ^ secret[4]) == 50
+      && (uc)(secret[5] * secret[3]) == 228
+      && secret[6] == (uc)(secret[3] + 230)
+      && secret[7] == (uc)(secret[2] - 223)
+      && (uc)(secret[7] - secret[8]) == 234
+      && secret[7] == (uc)(secret[0] - 220)
+      && (uc)(secret[8] ^ secret[1]) == 41
+      && secret[6] == (uc)(secret[2] - 229)
+      && (uc)(secret[4] + secret[0]) == 169
+      && secret[8] == (uc)(secret[5] + 17)
+    ) {
+      printf(VALID_PASSWORD);
+    } else {
+      printf(INVALID_PASSWORD);
+    }
+    return 0;
+  }
+
+Generate Python Solution
+************************
+
+..  code-block:: bash
+
+  z3-armor --template solver.py -p 'CTF{flag}' -s 0 -o solve.py
+  python3 solve.py
+  b'CTF{flag}'
+
+..  code-block:: python
+
+  """Solver for challenge."""
+  from z3 import BitVec, Solver, sat
+
+
+  def solve() -> None:
+      """Solve challenge using z3."""
+      p = [BitVec(f"p[{i}]", 8) for i in range(9)]
+      s = Solver()
+      s.add((p[1] ^ p[4]) == 50)
+      s.add((p[5] * p[3]) == 228)
+      s.add(p[6] == (p[3] + 230))
+      s.add(p[7] == (p[2] - 223))
+      s.add((p[7] - p[8]) == 234)
+      s.add(p[7] == (p[0] - 220))
+      s.add((p[8] ^ p[1]) == 41)
+      s.add(p[6] == (p[2] - 229))
+      s.add((p[4] + p[0]) == 169)
+      s.add(p[8] == (p[5] + 17))
+      if s.check() != sat:
+          print("Cannot find secret.")
+          return
+      model = s.model()
+      solutions = [model[c] for c in p]
+      flag = bytes(s.as_long() for s in solutions)
+      print(flag)
+
+  if __name__ == "__main__":
+      solve()
 
 Development
 ###########
